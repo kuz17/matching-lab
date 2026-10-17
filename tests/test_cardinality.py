@@ -3,7 +3,7 @@
 Three independent sources of truth:
   1. networkx.bipartite.hopcroft_karp_matching (reference library)
   2. scipy.sparse.csgraph.maximum_bipartite_matching (second reference)
-  3. a König vertex cover certificate (matching/certify.py), needing no library
+  3. a König vertex cover certificate (matching/certify/matching.py), needing no library
 """
 
 from __future__ import annotations
@@ -16,14 +16,16 @@ import numpy as np
 import pytest
 from scipy.sparse.csgraph import maximum_bipartite_matching
 
-from matching.cardinality import hopcroft_karp, simple_augmenting
+from matching.cardinality import hopcroft_karp, simple_augmenting, simple_augmenting_recursive
 from matching.certify import assert_maximum, matching_size
 from matching.instances import deep_chain, gnp, planted_perfect, to_csr, to_networkx
 
 ALGOS = [
     pytest.param(simple_augmenting, id="simple"),
+    pytest.param(simple_augmenting_recursive, id="simple_rec"),
     pytest.param(hopcroft_karp, id="hk"),
 ]
+ITERATIVE = [p for p in ALGOS if p.id != "simple_rec"]
 
 N_RANDOM = 240  # seeded random instances per algorithm
 
@@ -114,13 +116,19 @@ def test_edge_cases(algo, name):
     assert assert_maximum(n_left, n_right, adj, mate_l) == expected
 
 
-@pytest.mark.parametrize("algo", ALGOS)
+@pytest.mark.parametrize("algo", ITERATIVE)
 def test_deep_chain_no_recursion_limit(algo):
     """Augmenting path of length ~2n; recursive DFS without care hits RecursionError."""
     n = 5000
     adj = deep_chain(n)
     mate_l = algo(n, n, adj)
     assert matching_size(n, n, adj, mate_l) == n
+
+
+def test_recursive_fails_on_deep_chain():
+    """Documents the limitation: recursion depth grows with path length."""
+    with pytest.raises(RecursionError):
+        simple_augmenting_recursive(5000, 5000, deep_chain(5000))
 
 
 # ---------------------------------------------------------------------------
